@@ -1,0 +1,10 @@
+{
+  "FileVersion": 2,
+  "Id": "efc3c6ea-f061-4d27-99bb-8251abadaf52",
+  "Items": [
+    {
+      "Id": "46ab311a-f6ec-490f-a765-6b6790290555",
+      "Command": "parse -t 皮皮虾 -l https://h5.pipix.com/s/UCq8oeu/ -s ."
+    }
+  ]
+}
