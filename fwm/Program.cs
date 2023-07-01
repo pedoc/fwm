@@ -7,9 +7,12 @@ using System.Net.Http.Handlers;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Humanizer;
 using Serilog;
+using ShellProgressBar;
+
 // ReSharper disable InconsistentNaming
 
 namespace fwm;
@@ -244,6 +247,14 @@ class Handler : ConsoleAppBase
         var buffer = new byte[bufferSize];
         var isMoreToRead = true;
 
+        const int totalTicks = 10;
+        var options = new ProgressBarOptions
+        {
+            ProgressCharacter = '─',
+            ProgressBarOnBottom = true
+        };
+        using var pbar = new ProgressBar((int)totalLength.Value, "", options);
+        
         do
         {
             var read = await contentStream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
@@ -253,10 +264,12 @@ class Handler : ConsoleAppBase
             }
             else
             {
-                var percent = totalLength == -1 ? "-" : ((float)(totalRead * 1d / totalLength) * 100).ToString("n2");
+                //var percent = totalLength == -1 ? "-" : ((float)(totalRead * 1d / totalLength) * 100).ToString("f2");
                 await fs.WriteAsync(buffer, 0, read).ConfigureAwait(false);
                 totalRead += read;
-                Console.Title = $"已下载 {percent}%,总大小={totalLength.Value.Bytes().Kilobytes}MB,位置={fileName}";
+                //_logger.Information("已下载 {Percent}%,总大小={Size}MB", percent, totalLength.Value.Bytes().Kilobytes);
+                pbar.Tick((int)totalRead);
+                //Thread.Sleep(0);
             }
         }
         while (isMoreToRead);
