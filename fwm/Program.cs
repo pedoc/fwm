@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Humanizer;
 using Serilog;
 // ReSharper disable InconsistentNaming
 
@@ -30,6 +31,20 @@ class Handler : ConsoleAppBase
     static Handler()
     {
         _logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
+    }
+
+    [RootCommand]
+    public Task DefaultAsync(
+        [Option("l", "视频链接")] string url,
+        [Option("s")] string downloadDir)
+    {
+        var type = "";
+        if (Regex.Match(url, @"https?://h5.pipix.com/\S*").Success)
+        {
+            type = nameof(皮皮虾Async);
+        }
+
+        return ParseAsync(type, url, downloadDir);
     }
 
     [Command("parse")]
@@ -60,7 +75,7 @@ class Handler : ConsoleAppBase
     static bool IsSupported(string type, out MethodInfo m)
     {
         var t = typeof(Handler);
-        m = t.GetMethod(type + "Async", BindingFlags.NonPublic | BindingFlags.Static);
+        m = t.GetMethod(type.EndsWith("Async") ? type : type + "Async", BindingFlags.NonPublic | BindingFlags.Static);
         return m != null;
     }
 
@@ -79,7 +94,7 @@ class Handler : ConsoleAppBase
                 Directory.CreateDirectory(downloadDir);
             }
 
-            await DownloadAsync(videoInfo.Url, downloadDir, videoInfo.Title + ".mp4").ConfigureAwait(false);
+            await DownloadV2Async(videoInfo.Url, downloadDir, videoInfo.Title + ".mp4").ConfigureAwait(false);
         }
     }
 
@@ -112,7 +127,7 @@ class Handler : ConsoleAppBase
         var video_id = output["data"]["data"]["item"]["video"]!["video_id"]!.GetValue<string>();
         var author = output["data"]["data"]["item"]["author"]!["name"]!.GetValue<string>();
         var cover = output["data"]["data"]["item"]["cover"]!["url_list"]![0]!["url"]!.GetValue<string>();
-        return Result.Ok(new VideoInfo(string.IsNullOrEmpty(title)?video_id:title, videoUrl, cover, author));
+        return Result.Ok(new VideoInfo(string.IsNullOrEmpty(title) ? video_id : title, videoUrl, cover, author));
     }
 
     static async ValueTask<string> GetHeaderAsync(
@@ -170,7 +185,7 @@ class Handler : ConsoleAppBase
                 ph = new ProgressMessageHandler(handler);
             });
             ph.HttpReceiveProgress += OnHttpReceiveProgress;
-            var r = await hc.GetAsync(url).ConfigureAwait(false);
+            using var r = await hc.GetAsync(url).ConfigureAwait(false);
             fileName ??= r.Content?.Headers?.ContentDisposition?.FileName;
             if (string.IsNullOrEmpty(fileName))
             {
@@ -188,6 +203,63 @@ class Handler : ConsoleAppBase
                 ph.Dispose();
             }
         }
+    }
+
+    static async ValueTask DownloadV2Async(
+        string url,
+        string directory,
+        string fileName,
+        Action<HttpClientHandler> configAction = default)
+    {
+        using var hc = CreateHttpClient(handler =>
+            {
+                configAction?.Invoke(handler);
+            });
+
+        using var r = await hc.GetAsync(url).ConfigureAwait(false);
+        r.EnsureSuccessStatusCode();
+        fileName ??= r.Content?.Headers?.ContentDisposition?.FileName;
+        if (string.IsNullOrEmpty(fileName))
+        {
+            fileName = Guid.NewGuid().ToString("N") + ".mp4";
+        }
+        var path = Path.Combine(directory, fileName);
+        const int bufferSize = 8192;
+        await using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize, true);
+
+        var totalLength = r.Content.Headers.ContentLength;
+        await using Stream contentStream = await r.Content.ReadAsStreamAsync().ConfigureAwait(false);
+        if (totalLength == null)
+        {
+            try
+            {
+                totalLength = contentStream.Length;
+            }
+            catch (NotSupportedException)
+            {
+                totalLength = -1;
+            }
+        }
+        var totalRead = 0L;
+        var buffer = new byte[bufferSize];
+        var isMoreToRead = true;
+
+        do
+        {
+            var read = await contentStream.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
+            if (read == 0)
+            {
+                isMoreToRead = false;
+            }
+            else
+            {
+                var percent = totalLength == -1 ? "-" : ((float)(totalRead * 1d / totalLength) * 100).ToString("n2");
+                await fs.WriteAsync(buffer, 0, read).ConfigureAwait(false);
+                totalRead += read;
+                Console.Title = $"已下载 {percent}%,总大小={totalLength.Value.Bytes().Kilobytes}MB,位置={fileName}";
+            }
+        }
+        while (isMoreToRead);
     }
 }
 

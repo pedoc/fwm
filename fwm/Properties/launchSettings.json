@@ -2,7 +2,7 @@
   "profiles": {
     "fwm": {
       "commandName": "Project",
-      "commandLineArgs": "parse -t 皮皮虾 -l https://h5.pipix.com/s/UCq8oeu/ -s ."
+      "commandLineArgs": "-l https://h5.pipix.com/s/UCq8oeu/ -s ."
     }
   }
 }
