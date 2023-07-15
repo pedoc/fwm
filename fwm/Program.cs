@@ -125,12 +125,28 @@ class Handler : ConsoleAppBase
 
         var output = JsonNode.Parse(outputString);
         Debug.Assert(output != null);
-        var videoUrl = output["data"]!["data"]!["item"]!["origin_video_download"]!["url_list"]![0]!["url"]!.GetValue<string>();
-        var title = output["data"]["data"]["item"]["content"]!.GetValue<string>();
-        var video_id = output["data"]["data"]["item"]["video"]!["video_id"]!.GetValue<string>();
-        var author = output["data"]["data"]["item"]["author"]!["name"]!.GetValue<string>();
-        var cover = output["data"]["data"]["item"]["cover"]!["url_list"]![0]!["url"]!.GetValue<string>();
-        return Result.Ok(new VideoInfo(string.IsNullOrEmpty(title) ? video_id : title, videoUrl, cover, author));
+        try
+        {
+            var status_code= output["status_code"]!.GetValue<int>();
+            if (status_code != 0)
+            {
+                return Result.Error<VideoInfo>(
+                    $"解析失败,错误代码:{status_code},原因:{output["message"]!.GetValue<string>().ToString()}");
+            }
+
+            var videoUrl = output["data"]!["data"]!["item"]!["origin_video_download"]!["url_list"]![0]!["url"]!
+                .GetValue<string>();
+            var title = output["data"]["data"]["item"]["content"]!.GetValue<string>();
+            var video_id = output["data"]["data"]["item"]["video"]!["video_id"]!.GetValue<string>();
+            var author = output["data"]["data"]["item"]["author"]!["name"]!.GetValue<string>();
+            var cover = output["data"]["data"]["item"]["cover"]!["url_list"]![0]!["url"]!.GetValue<string>();
+            return Result.Ok(new VideoInfo(string.IsNullOrEmpty(title) ? video_id : title, videoUrl, cover, author));
+        }
+        catch (Exception ex)
+        {
+            _logger.Error(ex, "解析 {Type}->{Url} 失败,原因:{Message},原始响应:{Response}", type, url,ex.Message,outputString);
+            throw;
+        }
     }
 
     static async ValueTask<string> GetHeaderAsync(

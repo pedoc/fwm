@@ -7,6 +7,10 @@
       "Command": "-l https://h5.pipix.com/s/UCq8oeu/ -s ."
     },
     {
+      "Id": "b3230e82-31b5-467b-8844-4c4c64984dcd",
+      "Command": "-s I:\\Movie\\皮皮虾 -l https://h5.pipix.com/s/imLFvYH/"
+    },
+    {
       "Id": "46ab311a-f6ec-490f-a765-6b6790290555",
       "Command": "parse -t 皮皮虾 -l https://h5.pipix.com/s/UCq8oeu/ -s ."
     }
